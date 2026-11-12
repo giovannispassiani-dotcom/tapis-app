@@ -752,7 +752,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <label>Obiettivo <select id="trGoal"><option value="k" selected>Distanza (km)</option><option value="t">Durata (minuti)</option></select></label>
     <label id="lblKm">Distanza <select id="trKm"><option value="3">3 km</option><option value="5" selected>5 km</option><option value="6">6 km</option><option value="7.5">7,5 km</option><option value="10">10 km</option><option value="12">12 km</option><option value="15">15 km</option></select></label>
     </div>
-    <div id="rowGps" class="note" style="display:none">In strada non serve il percorso: premi AVVIA e cammina dove vuoi. L'app segue il GPS, e la gara dura il tempo che scegli qui sotto.<br><label><input type="checkbox" id="chkDark"> Schermo nero automatico all'avvio (risparmia batteria)</label><br><button id="btnDark" class="gray" type="button">Schermo nero adesso</button> (per tornare alle statistiche tocca 2 volte lo schermo)<br><label><input type="checkbox" id="chkGmStart" checked> Apri Google Maps alla partenza</label><br><button id="btnGmHere" class="gray" type="button">Apri Google Maps sulla mia posizione</button> <button id="btnGmLoop" class="gray" type="button">Dove vado? Anello da qui in Google Maps</button><div id="gmInfo"></div></div>
+    <div id="rowGps" class="note" style="display:none">In strada non serve il percorso: premi AVVIA e cammina dove vuoi. L'app segue il GPS, e la gara dura il tempo che scegli qui sotto.<br><label><input type="checkbox" id="chkDark"> Schermo nero automatico all'avvio (risparmia batteria)</label><br><button id="btnDark" class="gray" type="button">Schermo nero adesso</button> (per tornare alle statistiche tocca 2 volte lo schermo)<br><label>Mappa in strada <select id="selTiles"><option value="o" selected>Strade (OpenStreetMap)</option><option value="s">Satellite</option></select></label><br><label><input type="checkbox" id="chkGmStart"> Apri Google Maps alla partenza (la mia app resta in secondo piano)</label><br><button id="btnGmHere" class="gray" type="button">Apri Google Maps sulla mia posizione</button> <button id="btnGmLoop" class="gray" type="button">Dove vado? Anello da qui in Google Maps</button><div id="gmInfo"></div></div>
     <label id="lblDur">Durata <select id="trDur"><option value="30">30 minuti</option><option value="45">45 minuti</option><option value="60" selected>60 minuti</option><option value="75">75 minuti</option><option value="90">90 minuti</option></select></label><br>
     <label>Modalità <select id="trMode"><option value="cup" selected>Mondiale 128 nazionali</option><option value="free">Allenamento libero</option></select></label><br>
     <label>Il tuo passo tipico <input type="number" id="trTyp" min="1" max="10" step="0.1" value="4" style="width:70px"> km/h</label>
@@ -1013,7 +1013,8 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function startApp(){
   try{
     S.map=L.map('map',{zoomControl:true}).setView([37.5,15.08],13);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(S.map);
+    S.tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(S.map);
+    if($('selTiles').value==='s') setTiles();
     S.map.on('click',e=>addWaypoint({lat:e.latlng.lat,lng:e.latlng.lng}));
     if(navigator.geolocation){
       navigator.geolocation.getCurrentPosition(p=>{ if(!S.route) S.map.setView([p.coords.latitude,p.coords.longitude],15); },()=>{},{timeout:6000});
@@ -1843,7 +1844,7 @@ function onData(speed, incline){
   autoLogic(ts); render();
 }
 function render(){
-  try{ const fr=!!S.free; $('routeInfo').style.display=fr?'none':''; $('profile').parentNode.style.display=fr?'none':''; const hm=!!(S.free&&S.gps); $('mapWrap').style.display=hm?'none':''; $('tabMap').parentNode.style.display=hm?'none':''; }catch(e){}
+  try{ const fr=!!S.free; $('routeInfo').style.display=fr?'none':''; $('profile').parentNode.style.display=fr?'none':''; const fg=!!(S.free&&S.gps); $('tab3d').style.display=S.free?'none':''; $('mapWrap').style.height=fg?'58vh':''; if(fg&&S.map&&!S.mapSized){ S.mapSized=true; setTimeout(()=>S.map.invalidateSize(),100); } if(!fg) S.mapSized=false; }catch(e){}
   const on=!!(S.tour&&S.tour.on); $('ctlRow').style.display=on?'':'none'; $('btnPause').textContent=S.paused?'Riprendi la sessione':'Ferma la sessione (pausa)';
   $('vSpeed').textContent=S.speed.toFixed(1);
   $('vInc').textContent=S.incline.toFixed(1);
@@ -2000,7 +2001,7 @@ function getPos(){ if(NAT&&NAT.BackgroundGeolocation) return new Promise((res,re
 function gpsStart(){
   if(!navigator.geolocation){ showErr('Questo telefono/browser non ha il GPS.'); return false; }
   if(G.on) return true;
-  G.on=true; S.gps=true; G.last=null; G.sp=0;
+  G.on=true; S.gps=true; G.last=null; G.sp=0; G.hist=[]; try{ if(G.trail){ G.trail.remove(); G.trail=null; } }catch(e){}
   if(NAT&&NAT.BackgroundGeolocation){
     G.nw=true;
     Promise.resolve(NAT.BackgroundGeolocation.addWatcher({backgroundMessage:'Allenamento in corso: tocca per tornare all\'app',backgroundTitle:'Tapis App - GPS attivo',requestPermissions:true,stale:false,distanceFilter:0},(l,e)=>{ if(e){ showErr('GPS: '+(e.message||e.code)); return; } if(l){ onGps({coords:{latitude:l.latitude,longitude:l.longitude,accuracy:l.accuracy,speed:(typeof l.speed==='number'&&l.speed>=0)?l.speed:null},timestamp:l.time||Date.now()}); gpsTick(); } })).then(i=>{ G.nid=i; if(!G.on) try{ NAT.BackgroundGeolocation.removeWatcher({id:i}); }catch(x){} });
@@ -2009,6 +2010,14 @@ function gpsStart(){
   G.timer=setInterval(gpsTick,1000);
   $('status').textContent='GPS attivo'; requestWake(); return true;
 }
+function setTiles(){
+  if(!S.map) return; const sat=$('selTiles').value==='s';
+  try{ if(S.tiles) S.tiles.remove(); }catch(e){}
+  S.tiles=sat?L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery &copy; Esri'}):L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'});
+  S.tiles.addTo(S.map);
+}
+$('selTiles').value=load('selTiles')||'o'; $('selTiles').onchange=()=>{ store('selTiles',$('selTiles').value); setTiles(); };
+setTiles();
 function darkOn(){ $('dark').style.display='block'; }
 function darkOff(){ $('dark').style.display='none'; }
 $('dark').ondblclick=darkOff;
@@ -2036,7 +2045,14 @@ function onGps(pos){
       $('trInfo').textContent='Recuperati '+Math.round(gd)+' m (circa '+Math.round(gs/60*10)/10+' min) mentre il telefono era bloccato.';
     }
   }
+  // anti-rumore: se in ~8 secondi non mi sono spostato più dell'incertezza del GPS, sono fermo (GPS che balla in casa)
+  G.hist=(G.hist||[]).filter(h=>t-h.t<=14000); G.hist.push({ll:ll,t:t,acc:c.accuracy});
+  let still=false;
+  { const old=G.hist.find(h=>t-h.t>=6000);
+    if(old){ const net=hav(old.ll,ll), thr=Math.max(7,1.3*Math.max(c.accuracy,old.acc)); still=(net<thr); }
+    else still=(G.sp===0); }
   let v=null;
+  if(still){ v=0; } else
   if(typeof c.speed==='number' && isFinite(c.speed) && c.speed>=0){
     v=c.speed*3.6;                               // velocità misurata dal GPS (affidabile)
     if(v<1.2) v=0;                               // fermo o rumore del GPS
@@ -2046,6 +2062,7 @@ function onGps(pos){
   }
   if(v!==null){ if(v>25) v=G.sp; G.sp=(v===0)?G.sp*0.4:(G.sp*0.5+v*0.5); if(G.sp<1.0) G.sp=0; }
   G.last={ll:ll,t:t};
+  if(S.map && !still){ if(!G.trail) G.trail=L.polyline([],{color:'#e8590c',weight:5,opacity:0.85}).addTo(S.map); G.trail.addLatLng([ll.lat,ll.lng]); }
   if(S.map){ if(!G.mk) G.mk=L.circleMarker([ll.lat,ll.lng],{radius:7,color:'#fff',weight:2,fillColor:'#1a73e8',fillOpacity:1}).addTo(S.map); else G.mk.setLatLng([ll.lat,ll.lng]); if(S.free) S.map.panTo([ll.lat,ll.lng],{animate:false}); }
 }
 function gpsTick(){

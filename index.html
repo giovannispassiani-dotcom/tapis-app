@@ -701,6 +701,29 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .err{background:#fde2e2;border-radius:8px;padding:8px;font-size:13px;margin:6px 12px;display:none}
   #log{background:#111;color:#8f8;font:11px/1.35 monospace;padding:8px;border-radius:8px;height:26vh;overflow:auto;white-space:pre-wrap}
   .row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0}
+  .colL,.colR{display:contents}
+  #speedBar button{font-size:17px;padding:13px 12px}
+  @media (min-width:760px){
+    #mapWrap{height:42vh !important;min-height:300px}
+    .grid{grid-template-columns:1fr 1fr 1fr;gap:10px;padding:8px 14px 0}
+    .tile{padding:8px 12px;border-radius:14px}
+    .tile .l{font-size:15px}
+    .tile .v{font-size:48px;line-height:1.1}
+    .tile.big .v{font-size:58px}
+    #speedBar button{font-size:20px;padding:16px 14px;min-width:130px}
+    #ctlRow button{font-size:20px;padding:14px 16px}
+    header h1{font-size:24px}
+  }
+  @media (min-width:1000px){
+    #app{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-areas:"L R" "P R";gap:8px 14px;padding:8px 14px;align-items:start}
+    .colL{display:block;grid-area:L}
+    .colR{display:block;grid-area:R}
+    #app>.pad{grid-area:P}
+    #app>details{grid-column:1/-1;margin:4px 0}
+    #mapWrap{height:calc(100vh - 150px) !important;min-height:380px}
+    .grid{padding:0}
+    #speedBar,#tourTile,#ctlRow,#ghostTile{margin:10px 0 !important}
+  }
 </style>
 </head>
 <body>
@@ -718,13 +741,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
 <!-- App -->
 <div id="app">
+  <div class="colL">
   <div class="row" style="padding:6px 12px 0">
     <button id="tabMap" class="on">Mappa</button>
     <button id="tab3d" class="off">Vista 3D</button>
     <span class="note" id="viewInfo">Mappe &copy; OpenStreetMap</span>
   </div>
   <div id="mapWrap"><div id="map"></div></div>
+  </div>
 
+  <div class="colR">
   <div class="grid">
     <div class="tile big"><div class="l">Distanza (km)</div><div class="v" id="vDist">0.00</div></div>
     <div class="tile big"><div class="l">Tempo</div><div class="v" id="vTime">00:00</div></div>
@@ -736,9 +762,18 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div class="tile"><div class="l">Quota (m)</div><div class="v" id="vAlt">-</div></div>
     <div class="tile"><div class="l">Salita fatta (m)</div><div class="v" id="vClimb">-</div></div>
   </div>
+  <div id="speedBar" class="tile" style="margin:8px 10px"><div class="l">Tapis: velocità e fermata (dall'app)</div>
+    <div class="row" id="rowSpeed">
+      <button id="btnSpdDown" class="gray" disabled>Velocità -0,5</button>
+      <button id="btnSpdUp" disabled>Avvia / Velocità +0,5</button>
+      <button id="btnSpdStop" class="red" disabled>FERMA nastro</button>
+    </div>
+    <div class="note" id="spdInfo">Velocità: collega il tapis per usarla (massimo 8 km/h).</div></div>
   <div class="tile" id="tourTile" style="margin:8px 10px;grid-column:1/-1;display:none;border:2px solid #0a7"><div class="l">Mondiale delle nazioni / allenamento - tu sei l'Italia</div><div class="v" id="vTour" style="font-size:26px">-</div><div class="note" id="vTourSub"></div><div class="note" id="vTourK" style="font-weight:600"></div><div class="note" id="vTourAdv" style="font-weight:700"></div></div>
   <div id="ctlRow" style="display:none;margin:0 10px 8px;grid-column:1/-1"><div class="row"><button id="btnPause" type="button">Ferma la sessione (pausa)</button><button id="btnEnd" class="gray" type="button">Termina e salva</button></div></div>
   <div class="tile" id="ghostTile" style="margin:8px 10px;grid-column:1/-1"><div class="l">Confronto con la seduta precedente</div><div class="v" id="vGhost" style="font-size:26px">-</div><div class="note" id="vGhostSub"></div><div class="note" id="vGhostK" style="font-weight:600"></div></div>
+
+  </div>
 
   <div class="pad"><canvas id="profile" width="700" height="220"></canvas>
   <div class="note" id="routeInfo">Nessun percorso scelto</div></div>
@@ -797,12 +832,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <details open>
     <summary>3. Inclinazione automatica</summary>
     <div class="warn">Collegati sempre a nastro FERMO. Con l'app collegata i tasti della console non rispondono: avvia, regola la velocità e ferma il nastro da qui. La chiave di sicurezza resta lo stop di emergenza: tienila agganciata.</div>
-    <div class="row" id="rowSpeed">
-      <button id="btnSpdDown" class="gray" disabled>Velocità -0,5</button>
-      <button id="btnSpdUp" disabled>Avvia / Velocità +0,5</button>
-      <button id="btnSpdStop" class="red" disabled>FERMA nastro</button>
-    </div>
-    <div class="note" id="spdInfo">Velocità: collega il tapis per usarla (massimo 8 km/h).</div>
     <div class="row">
       <label>Inclinazione massima
         <select id="selMax"><option>4</option><option>6</option><option selected>8</option><option>10</option><option>12</option><option>15</option><option>20</option></select> %</label>
@@ -1043,14 +1072,33 @@ function clearWaypoints(){
   if(S.routeLine){ S.routeLine.remove(); S.routeLine=null; }
   S.route=null; $('routeInfo').textContent='Nessun percorso scelto'; drawProfile();
 }
-async function geocode(q){
-  let url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=it&q='+encodeURIComponent(q);
-  try{ const b=S.map.getBounds().pad(1.5); url+='&viewbox='+b.getWest().toFixed(4)+','+b.getNorth().toFixed(4)+','+b.getEast().toFixed(4)+','+b.getSouth().toFixed(4); }catch(e){}
+async function geoNomi(q,useView){
+  let url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=it&countrycodes=it&q='+encodeURIComponent(q);
+  if(useView){ try{ const b=S.map.getBounds().pad(1.5); url+='&viewbox='+b.getWest().toFixed(4)+','+b.getNorth().toFixed(4)+','+b.getEast().toFixed(4)+','+b.getSouth().toFixed(4); }catch(e){} }
   const r=await fetch(url);
   if(!r.ok) throw new Error('ricerca indirizzi '+r.status);
   const j=await r.json();
-  if(!j.length) throw new Error('indirizzo non trovato: "'+q+'" (prova ad aggiungere la città)');
-  return {lat:parseFloat(j[0].lat),lng:parseFloat(j[0].lon),name:j[0].display_name};
+  return j.length?{lat:parseFloat(j[0].lat),lng:parseFloat(j[0].lon),name:j[0].display_name}:null;
+}
+async function geoPhoton(q){
+  const r=await fetch('https://photon.komoot.io/api/?lang=it&limit=1&q='+encodeURIComponent(q));
+  if(!r.ok) return null;
+  const j=await r.json(); const f=j.features&&j.features[0]; if(!f) return null;
+  const pr=f.properties||{};
+  return {lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],name:[pr.name||pr.street,pr.city||pr.town||pr.village,pr.state].filter(Boolean).join(', ')};
+}
+// cerca l'indirizzo con piu' tentativi: cosi' com'e', senza numero civico, poi un secondo servizio gratuito
+async function geocode(q){
+  const noNum=q.replace(/\s+(?:n\.?\s*)?\d+\s*[\/a-zA-Z]?(?=\s*,|\s*$)/,'').replace(/\s+,/,',').trim();
+  const tries=[q]; if(noNum && noNum!==q) tries.push(noNum);
+  for(const t of tries){
+    const view=!t.includes(',');       // se hai scritto la citta' non uso la zona della mappa
+    let g=null;
+    try{ g=await geoNomi(t,view); }catch(e){}
+    if(!g){ try{ g=await geoPhoton(t); }catch(e){} }
+    if(g){ if(t!==q) g.approx=true; return g; }
+  }
+  throw new Error('indirizzo non trovato: "'+q+'". Scrivi via, comune e provincia, ad esempio "Via Diaz, Sora, FR" (il numero civico può mancare).');
 }
 try{ $('adrFrom').value=localStorage.getItem('adrFrom')||''; $('adrTo').value=localStorage.getItem('adrTo')||''; }catch(e){}
 $('btnSwap').onclick=()=>{ const a=$('adrFrom').value; $('adrFrom').value=$('adrTo').value; $('adrTo').value=a; };
@@ -1856,6 +1904,7 @@ function onData(speed, incline){
   autoLogic(ts); render();
 }
 function render(){
+  try{ $('speedBar').style.display=S.gps?'none':''; }catch(e){}
   try{ const fr=!!S.free; $('routeInfo').style.display=fr?'none':''; $('profile').parentNode.style.display=fr?'none':''; const fg=!!(S.free&&S.gps); $('tab3d').style.display=S.free?'none':''; $('mapWrap').style.height=fg?'58vh':''; if(fg&&S.map&&!S.mapSized){ S.mapSized=true; setTimeout(()=>S.map.invalidateSize(),100); } if(!fg) S.mapSized=false; }catch(e){}
   const on=!!(S.tour&&S.tour.on); $('ctlRow').style.display=on?'':'none'; $('btnPause').textContent=S.paused?'Riprendi la sessione':'Ferma la sessione (pausa)';
   $('vSpeed').textContent=S.speed.toFixed(1);

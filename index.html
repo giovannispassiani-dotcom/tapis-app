@@ -704,6 +704,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
 </style>
 </head>
 <body>
+<div id="ask" style="display:none;position:fixed;inset:0;background:#fff;z-index:99998;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;text-align:center;padding:20px"><div style="font-size:30px;font-weight:700;margin-bottom:24px">Quanto tempo oggi?</div><div id="askBtns"></div><button id="askCancel" class="gray" type="button" style="margin-top:28px">Annulla</button></div>
+<div id="cd" style="display:none;position:fixed;inset:0;background:#0a7;color:#fff;z-index:99998;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;text-align:center"><div style="font-size:28px">Si parte tra</div><div id="cdNum" style="font-size:160px;font-weight:800;line-height:1.1">15</div><div id="cdSub" style="font-size:22px"></div><button id="cdCancel" class="gray" type="button" style="margin-top:30px">Annulla</button></div>
+
 <div id="dark" style="display:none;position:fixed;inset:0;background:#000;color:#555;z-index:99999;text-align:center;padding-top:30vh;font-family:sans-serif"><div style="font-size:22px">In ascolto: ti parlo ogni 5 minuti</div><div id="darkInfo" style="font-size:34px;margin-top:24px"></div><div style="font-size:15px;margin-top:40px">Per tornare alla schermata: tocca 2 volte</div></div>
 
 
@@ -734,6 +737,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div class="tile"><div class="l">Salita fatta (m)</div><div class="v" id="vClimb">-</div></div>
   </div>
   <div class="tile" id="tourTile" style="margin:8px 10px;grid-column:1/-1;display:none;border:2px solid #0a7"><div class="l">Mondiale delle nazioni / allenamento - tu sei l'Italia</div><div class="v" id="vTour" style="font-size:26px">-</div><div class="note" id="vTourSub"></div><div class="note" id="vTourK" style="font-weight:600"></div><div class="note" id="vTourAdv" style="font-weight:700"></div></div>
+  <div id="ctlRow" style="display:none;margin:0 10px 8px;grid-column:1/-1"><div class="row"><button id="btnPause" type="button">Ferma la sessione (pausa)</button><button id="btnEnd" class="gray" type="button">Termina e salva</button></div></div>
   <div class="tile" id="ghostTile" style="margin:8px 10px;grid-column:1/-1"><div class="l">Confronto con la seduta precedente</div><div class="v" id="vGhost" style="font-size:26px">-</div><div class="note" id="vGhostSub"></div><div class="note" id="vGhostK" style="font-weight:600"></div></div>
 
   <div class="pad"><canvas id="profile" width="700" height="220"></canvas>
@@ -748,7 +752,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <label>Obiettivo <select id="trGoal"><option value="k" selected>Distanza (km)</option><option value="t">Durata (minuti)</option></select></label>
     <label id="lblKm">Distanza <select id="trKm"><option value="3">3 km</option><option value="5" selected>5 km</option><option value="6">6 km</option><option value="7.5">7,5 km</option><option value="10">10 km</option><option value="12">12 km</option><option value="15">15 km</option></select></label>
     </div>
-    <div id="rowGps" class="note" style="display:none">In strada non serve il percorso: premi AVVIA e cammina dove vuoi. L'app segue il GPS, e la gara dura il tempo che scegli qui sotto.<br><label><input type="checkbox" id="chkDark"> Schermo nero automatico all'avvio (risparmia batteria)</label><br><button id="btnDark" class="gray" type="button">Schermo nero adesso</button> (per tornare alle statistiche tocca 2 volte lo schermo)</div>
+    <div id="rowGps" class="note" style="display:none">In strada non serve il percorso: premi AVVIA e cammina dove vuoi. L'app segue il GPS, e la gara dura il tempo che scegli qui sotto.<br><label><input type="checkbox" id="chkDark"> Schermo nero automatico all'avvio (risparmia batteria)</label><br><button id="btnDark" class="gray" type="button">Schermo nero adesso</button> (per tornare alle statistiche tocca 2 volte lo schermo)<br><label><input type="checkbox" id="chkGmStart" checked> Apri Google Maps alla partenza</label><br><button id="btnGmHere" class="gray" type="button">Apri Google Maps sulla mia posizione</button> <button id="btnGmLoop" class="gray" type="button">Dove vado? Anello da qui in Google Maps</button><div id="gmInfo"></div></div>
     <label id="lblDur">Durata <select id="trDur"><option value="30">30 minuti</option><option value="45">45 minuti</option><option value="60" selected>60 minuti</option><option value="75">75 minuti</option><option value="90">90 minuti</option></select></label><br>
     <label>Modalità <select id="trMode"><option value="cup" selected>Mondiale 128 nazionali</option><option value="free">Allenamento libero</option></select></label><br>
     <label>Il tuo passo tipico <input type="number" id="trTyp" min="1" max="10" step="0.1" value="4" style="width:70px"> km/h</label>
@@ -857,6 +861,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </details>
 </div>
 
+<script src="native.js" onerror="void 0"></script>
 <script>
 /* @preserve
  * Leaflet 1.9.4, a JS library for interactive maps. https://leafletjs.com
@@ -1515,11 +1520,60 @@ $('btnGmaps').onclick=()=>{
   const url='https://www.google.com/maps/dir/?api=1&travelmode=walking&origin='+f(P[0])+'&destination='+f(P[n-1])+'&waypoints='+W.join('|');
   if(NAT) window.location.href=url; else window.open(url,'_blank');
 };
+function openUrl(u){ if(NAT) window.location.href=u; else window.open(u,'_blank'); }
+$('btnGmHere').onclick=async()=>{ clearErr(); try{ $('gmInfo').textContent='Leggo la posizione...'; const p=await getPos(); $('gmInfo').textContent=''; openUrl('https://www.google.com/maps/search/?api=1&query='+p.lat.toFixed(6)+','+p.lng.toFixed(6)); }catch(e){ $('gmInfo').textContent=''; showErr(e.message); } };
+$('btnGmLoop').onclick=async()=>{ clearErr(); try{
+  const typ=parseFloat($('trTyp').value)||4, dur=parseFloat($('trDur').value)||60;
+  $('gmInfo').textContent='Leggo la posizione...'; const st=await getPos();
+  $('gmInfo').textContent='Costruisco un anello di circa '+numIt(typ*dur/60,1)+' km...';
+  const g=await genLoop(st,typ*dur/60*1000); $('gmInfo').textContent='';
+  const f=q=>q.lat.toFixed(6)+','+q.lng.toFixed(6), w=g.wps;
+  openUrl('https://www.google.com/maps/dir/?api=1&travelmode=walking&origin='+f(w[0])+'&destination='+f(w[0])+'&waypoints='+w.slice(1).map(f).join('|'));
+ }catch(e){ $('gmInfo').textContent=''; showErr(e.message); } };
 $('btnTrLoad').onclick=useSavedRoute;
 $('btnTrDel').onclick=()=>{ const id=parseFloat($('trSaved').value); store('percorsi',JSON.stringify(loadRoutes().filter(x=>x.id!==id))); renderSaved(); };
 $('trAddr').value=load('trAddr')||''; setDur(parseFloat(load('trDur'))||60); $('trMode').value=load('trMode')||'cup';
 $('trTyp').value=String(typicalSpeed()); renderSaved();
-$('btnTrStart').onclick=()=>trStart(); $('btnTrStop').onclick=()=>tourStop();
+const SPELL=['zero','uno','due','tre','quattro','cinque','sei','sette','otto','nove','dieci'];
+let CD=null;
+function cdStop(){ if(CD){ clearInterval(CD); CD=null; } $('cd').style.display='none'; }
+function gpsFlow(){
+  clearErr(); if(S.connected||S.sim){ showErr('Per camminare in strada scollega il tapis e ferma la simulazione.'); return; }
+  const box=$('askBtns'); box.innerHTML='';
+  [30,45,60,75,90].forEach(d=>{ const b=document.createElement('button'); b.type='button'; b.textContent=d+' minuti'; b.style.cssText='display:block;width:240px;margin:8px auto;font-size:22px;padding:14px'; b.onclick=()=>gpsChosen(d); box.appendChild(b); });
+  $('ask').style.display='flex';
+  say('Quanto tempo oggi? Scegli sullo schermo.');
+  try{ getPos().catch(()=>{}); }catch(e){}
+}
+$('askCancel').onclick=()=>{ $('ask').style.display='none'; };
+$('cdCancel').onclick=()=>{ cdStop(); };
+async function gpsChosen(d){
+  $('ask').style.display='none'; setDur(d); store('trDur',String(d));
+  try{
+    $('trInfo').textContent='Leggo la tua posizione...';
+    const pos=await getPos(); await makeFreeRoute(pos); $('trInfo').textContent='';
+    S.freeReady=true;
+    let n=15; $('cd').style.display='flex'; $('cdNum').textContent=String(n); $('cdSub').textContent=d+' minuti - vi aspettano 127 nazionali';
+    say('Allenamento di '+d+' minuti. Si parte tra quindici secondi.');
+    CD=setInterval(()=>{
+      n--; $('cdNum').textContent=String(Math.max(n,0));
+      if(n===10||(n>=1&&n<=5)) say(SPELL[n]);
+      if(n<=0){
+        cdStop();
+        trStart(); S.freeReady=false;
+        if(S.tour&&S.tour.on&&$('chkGmStart').checked) setTimeout(()=>{ openUrl('https://www.google.com/maps/search/?api=1&query='+pos.lat.toFixed(6)+','+pos.lng.toFixed(6)); },5000);
+      }
+    },1000);
+  }catch(e){ $('trInfo').textContent=''; showErr(e.message); }
+}
+$('btnTrStart').onclick=()=>{ if($('trSrc').value==='g' && !(S.tour&&S.tour.on)) gpsFlow(); else trStart(); };
+$('btnPause').onclick=()=>{
+  if(!(S.tour&&S.tour.on)) return;
+  if(!S.paused){ S.paused=true; S.speed=0; say('Sessione in pausa.'); }
+  else { S.paused=false; S.lastTs=null; if(G.on) G.last=null; say('Si riparte! Forza azzurro!'); }
+  render();
+};
+$('btnEnd').onclick=()=>{ if(!(S.tour&&S.tour.on)) return; if(confirm('Terminare adesso e salvare la sessione?')) tourFinish(true); }; $('btnTrStop').onclick=()=>tourStop();
 $('trMode').onchange=()=>store('trMode',$('trMode').value);
 $('trTyp').onchange=()=>tourPrep();
 
@@ -1575,7 +1629,7 @@ function trStart(){
 }
 function tourStop(){
   if(S.tour) tourClearMarkers();
-  S.tour={on:false,result:null,bots:[],flagMk:[]};
+  S.tour={on:false,result:null,bots:[],flagMk:[]}; S.paused=false;
   if(G.on) gpsStop();
   S.saved=false; $('tourBox').textContent='Allenamento fermato.'; $('tourTile').style.display='none'; refreshRef(); render();
 }
@@ -1615,23 +1669,23 @@ function finalStandings(){
   all.push({me:true,name:'ITALIA',flag:IT_FLAG,key:T.meAlive?(T.champ==='ITALIA'?8:7):T.meElim.stage,sd:T.meElim?T.meElim.d:0,cum:S.dist});
   return all.sort((x,y)=>(y.key-x.key)||(y.sd-x.sd)||(y.cum-x.cum));
 }
-function tourFinish(){
-  const T=S.tour, cup=T.mode==='cup';
+function tourFinish(early){
+  const T=S.tour, cup=T.mode==='cup'; S.paused=false; const mins=early?Math.max(1,Math.round(S.moving/60)):T.dur;
   let place=0, size=T.bots.length+1;
   if(cup){ const fs=finalStandings(); place=fs.findIndex(x=>x.me)+1; T.finalPlace=place; T.finalTop=fs.slice(0,5); }
   S.tourSaveExtra={place:place};
   S.rec.samples.push([S.dist,S.moving,S.kcal]);
-  const wasSaved=saveSession(true);
+  const wasSaved=saveSession(!early);
   T.on=false; tourClearMarkers(); if(G.on) gpsStop();
   const km=numIt(S.dist/1000,2), kc=parseFloat($('peso').value)>0?(' e '+Math.round(S.kcal)+' calorie'):'';
   let say1;
   if(cup){
     const champ=(T.champ==='ITALIA');
     T.result={txt:champ?(IT_FLAG+' CAMPIONE DEL MONDO!'):(IT_FLAG+' '+place+'° su '+size),cls:champ?'ghostUp':(place<=size/2?'ghostUp':'ghostDown'),
-      sub:'Allenamento finito: '+km+' km in '+T.dur+' minuti. '+(champ?'Hai vinto il Mondiale!':'Classifica finale: '+place+'° su '+size+(T.meElim?' (eliminata al turno '+(T.meElim.stage+1)+' di 7)':'')+'.')+' Primi: '+T.finalTop.map(x=>x.flag+' '+x.name).join(', ')};
+      sub:'Allenamento finito: '+km+' km in '+mins+' minuti. '+(champ?'Hai vinto il Mondiale!':'Classifica finale: '+place+'° su '+size+(T.meElim?' (eliminata al turno '+(T.meElim.stage+1)+' di 7)':'')+'.')+' Primi: '+T.finalTop.map(x=>x.flag+' '+x.name).join(', ')};
     say1=champ?('Allenamento finito! L\'Italia è campione del mondo! Hai percorso '+km+' chilometri'+kc+'. Complimenti, grandissimo!'):('Allenamento finito! L\'Italia chiude al posto '+place+' su '+size+', con '+km+' chilometri'+kc+'. Il campione è '+(T.champ||'sconosciuto')+'. Alla prossima proviamo a fare meglio!');
   } else {
-    T.result={txt:'Allenamento finito',cls:'ghostUp',sub:km+' km in '+T.dur+' minuti.'};
+    T.result={txt:'Allenamento finito',cls:'ghostUp',sub:km+' km in '+mins+' minuti.'};
     say1='Allenamento finito! Hai percorso '+km+' chilometri'+kc+'. Complimenti!';
   }
   if(S.finishedMsg&&S.finishedMsg.say) say1+=' '+S.finishedMsg.say;
@@ -1771,6 +1825,7 @@ $('btnReset').onclick=()=>{ if(S.tour.on) tourStop(); resetSession(); render(); 
 
 function onData(speed, incline){
   const ts=Date.now();
+  if(S.paused){ S.lastTs=ts; S.speed=0; render(); return; }
   if(S.lastTs!==null){
     const dt=(ts-S.lastTs)/1000;
     if(dt>0 && dt<5 && speed>0.15){ S.dist+=speed*1000/3600*dt; S.moving+=dt; S.kcal+=kcalPerMin(speed,incline,parseFloat($('peso').value)||0)*dt/60; if(S.tour.on) tourTick(dt); }
@@ -1784,6 +1839,7 @@ function onData(speed, incline){
   autoLogic(ts); render();
 }
 function render(){
+  const on=!!(S.tour&&S.tour.on); $('ctlRow').style.display=on?'':'none'; $('btnPause').textContent=S.paused?'Riprendi la sessione':'Ferma la sessione (pausa)';
   $('vSpeed').textContent=S.speed.toFixed(1);
   $('vInc').textContent=S.incline.toFixed(1);
   $('vDist').textContent=(S.dist/1000).toFixed(2);
@@ -1871,13 +1927,30 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
 $('btnConnect').onclick=async()=>{
   try{
     clearErr();
+    const onDisc=()=>{
+      log('Disconnesso'); $('status').textContent='Disconnesso';
+      clearInterval(pollTimer); pollTimer=null; S.connected=false; S.auto=false; S.lastTs=null; render();
+    };
+    if(NAT && window.BleClient){
+      // ---- Bluetooth nativo (app Android) ----
+      const B=window.BleClient;
+      stopSim();
+      await B.initialize({androidNeverForLocation:true});
+      const dev=await B.requestDevice({optionalServices:[SERVICE]});
+      device={name:dev.name||dev.deviceId};
+      $('status').textContent='Connessione a '+device.name+'...';
+      await B.connect(dev.deviceId,onDisc);
+      const toDV=u=>{ const x=new Uint8Array(u); return new DataView(x.buffer,x.byteOffset,x.byteLength); };
+      chWrite={ writeValueWithoutResponse:u=>B.writeWithoutResponse(dev.deviceId,SERVICE,WRITE,toDV(u)), writeValueWithResponse:u=>B.write(dev.deviceId,SERVICE,WRITE,toDV(u)) };
+      for(const uuid of [NOTIFY,NOTIFY2]){
+        try{ await B.startNotifications(dev.deviceId,SERVICE,uuid,dv=>onFrame(dv)); }
+        catch(err){ log('Notify '+uuid.slice(0,8)+' non attivabile: '+(err.message||err)); }
+      }
+    } else {
     if(!navigator.bluetooth){ showErr('Web Bluetooth non disponibile: usa Chrome su Android.'); return; }
     stopSim();
     device=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SERVICE]});
-    device.addEventListener('gattserverdisconnected',()=>{
-      log('Disconnesso'); $('status').textContent='Disconnesso';
-      clearInterval(pollTimer); pollTimer=null; S.connected=false; S.auto=false; S.lastTs=null; render();
-    });
+    device.addEventListener('gattserverdisconnected',onDisc);
     $('status').textContent='Connessione a '+device.name+'...';
     const server=await device.gatt.connect();
     const svc=await server.getPrimaryService(SERVICE);
@@ -1886,6 +1959,7 @@ $('btnConnect').onclick=async()=>{
       try{ const ch=await svc.getCharacteristic(uuid); await ch.startNotifications();
         ch.addEventListener('characteristicvaluechanged',e=>onFrame(e.target.value));
       }catch(err){ log('Notify '+uuid.slice(0,8)+' non attivabile: '+err.message); }
+    }
     }
     await chWrite.writeValueWithoutResponse(withChecksum([0xf0,0xc8,0x01]));
     await new Promise(r=>setTimeout(r,300));
@@ -1945,7 +2019,7 @@ function onGps(pos){
   const c=pos.coords, t=pos.timestamp||Date.now(); G.acc=c.accuracy;
   if(c.accuracy>25) return;                       // posizione troppo imprecisa
   const ll={lat:c.latitude,lng:c.longitude};
-  if(G.last && S.tour && S.tour.on && (t-G.last.t)>12000){      // telefono bloccato/app in pausa: recupero il tratto perso
+  if(G.last && S.tour && S.tour.on && !S.paused && (t-G.last.t)>12000){      // telefono bloccato/app in pausa: recupero il tratto perso
     const gs=(t-G.last.t)/1000, gd=hav(G.last.ll,ll), gv=gd/gs*3.6;
     if(gv>=1.5 && gv<=9){
       const peso=parseFloat($('peso').value)||0, inc=S.route?targetAt(S.route,pd(),40,1,20):0;

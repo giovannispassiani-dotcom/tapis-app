@@ -1513,7 +1513,7 @@ $('btnGmaps').onclick=()=>{
   const P=S.route.pts, n=P.length, f=q=>q.lat.toFixed(6)+','+q.lng.toFixed(6), W=[];
   for(let i=1;i<=8;i++) W.push(f(P[Math.round(i*(n-1)/9)]));
   const url='https://www.google.com/maps/dir/?api=1&travelmode=walking&origin='+f(P[0])+'&destination='+f(P[n-1])+'&waypoints='+W.join('|');
-  window.open(url,'_blank');
+  if(NAT) window.location.href=url; else window.open(url,'_blank');
 };
 $('btnTrLoad').onclick=useSavedRoute;
 $('btnTrDel').onclick=()=>{ const id=parseFloat($('trSaved').value); store('percorsi',JSON.stringify(loadRoutes().filter(x=>x.id!==id))); renderSaved(); };
@@ -1914,7 +1914,7 @@ $('btnCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText($('log'
 const G={on:false,id:null,timer:null,last:null,sp:0,mk:null,acc:0};
 function getPos(){ if(NAT&&NAT.BackgroundGeolocation) return new Promise((res,rej)=>{
   let id=null,done=false; const fin=(f,v)=>{ if(done) return; done=true; try{ if(id) NAT.BackgroundGeolocation.removeWatcher({id:id}); }catch(e){} f(v); };
-  NAT.BackgroundGeolocation.addWatcher({requestPermissions:true,stale:false,distanceFilter:0},(l,e)=>{ if(e){ fin(rej,new Error('Non riesco a leggere la posizione: consenti il GPS all\'app.')); return; } if(l && l.accuracy<=60) fin(res,{lat:l.latitude,lng:l.longitude}); }).then(i=>{ id=i; if(done) try{ NAT.BackgroundGeolocation.removeWatcher({id:i}); }catch(e){} });
+  const wid=(NAT.BackgroundGeolocation.addWatcher({requestPermissions:true,stale:false,distanceFilter:0},(l,e)=>{ if(e){ fin(rej,new Error('Non riesco a leggere la posizione: consenti il GPS all\'app.')); return; } if(l && l.accuracy<=60) fin(res,{lat:l.latitude,lng:l.longitude}); })); Promise.resolve(wid).then(i=>{ id=i; if(done) try{ NAT.BackgroundGeolocation.removeWatcher({id:i}); }catch(e){} });
   setTimeout(()=>fin(rej,new Error('Posizione non trovata: vai all\'aperto, attiva il GPS e riprova.')),25000); });
   return new Promise((res,rej)=>{ if(!navigator.geolocation){ rej(new Error('Questo telefono/browser non ha il GPS.')); return; }
   navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),e=>rej(new Error('Non riesco a leggere la posizione: '+e.message+'. Attiva la posizione e consenti l\'accesso.')),{enableHighAccuracy:true,timeout:20000}); }); }
@@ -1924,7 +1924,7 @@ function gpsStart(){
   G.on=true; S.gps=true; G.last=null; G.sp=0;
   if(NAT&&NAT.BackgroundGeolocation){
     G.nw=true;
-    NAT.BackgroundGeolocation.addWatcher({backgroundMessage:'Allenamento in corso: tocca per tornare all\'app',backgroundTitle:'Tapis App - GPS attivo',requestPermissions:true,stale:false,distanceFilter:0},(l,e)=>{ if(e){ showErr('GPS: '+(e.message||e.code)); return; } if(l){ onGps({coords:{latitude:l.latitude,longitude:l.longitude,accuracy:l.accuracy,speed:(typeof l.speed==='number'&&l.speed>=0)?l.speed:null},timestamp:l.time||Date.now()}); gpsTick(); } }).then(i=>{ G.nid=i; if(!G.on) try{ NAT.BackgroundGeolocation.removeWatcher({id:i}); }catch(x){} });
+    Promise.resolve(NAT.BackgroundGeolocation.addWatcher({backgroundMessage:'Allenamento in corso: tocca per tornare all\'app',backgroundTitle:'Tapis App - GPS attivo',requestPermissions:true,stale:false,distanceFilter:0},(l,e)=>{ if(e){ showErr('GPS: '+(e.message||e.code)); return; } if(l){ onGps({coords:{latitude:l.latitude,longitude:l.longitude,accuracy:l.accuracy,speed:(typeof l.speed==='number'&&l.speed>=0)?l.speed:null},timestamp:l.time||Date.now()}); gpsTick(); } })).then(i=>{ G.nid=i; if(!G.on) try{ NAT.BackgroundGeolocation.removeWatcher({id:i}); }catch(x){} });
   } else
   G.id=navigator.geolocation.watchPosition(onGps,e=>{ showErr('GPS: '+e.message+' (attiva la posizione e consenti l\'accesso)'); },{enableHighAccuracy:true,maximumAge:0,timeout:20000});
   G.timer=setInterval(gpsTick,1000);

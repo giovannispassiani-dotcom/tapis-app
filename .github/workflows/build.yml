@@ -20,7 +20,10 @@ jobs:
           mkdir www
           cp index.html www/index.html
           npm init -y
-          npm install @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8 @capacitor-community/background-geolocation @capacitor-community/text-to-speech
+          npm install @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8 @capacitor-community/background-geolocation @capacitor-community/text-to-speech @capacitor-community/bluetooth-le
+          echo "import { BleClient } from '@capacitor-community/bluetooth-le'; window.BleClient = BleClient;" > entry.js
+          npm install esbuild
+          npx esbuild entry.js --bundle --format=iife --outfile=www/native.js || echo "bundle bluetooth non riuscito"
           npx cap init TapisApp it.giovanni.tapis --web-dir www
           npx cap add android
           npx cap sync android

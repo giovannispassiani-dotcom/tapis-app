@@ -1943,7 +1943,7 @@ function gpsStop(){ darkOff();
 }
 function onGps(pos){
   const c=pos.coords, t=pos.timestamp||Date.now(); G.acc=c.accuracy;
-  if(c.accuracy>35) return;                       // posizione troppo imprecisa
+  if(c.accuracy>25) return;                       // posizione troppo imprecisa
   const ll={lat:c.latitude,lng:c.longitude};
   if(G.last && S.tour && S.tour.on && (t-G.last.t)>12000){      // telefono bloccato/app in pausa: recupero il tratto perso
     const gs=(t-G.last.t)/1000, gd=hav(G.last.ll,ll), gv=gd/gs*3.6;
@@ -1955,9 +1955,14 @@ function onGps(pos){
     }
   }
   let v=null;
-  if(G.last){ const dt=(t-G.last.t)/1000, d=hav(G.last.ll,ll); if(dt>0.3){ v=d/dt*3.6; if(d<Math.max(2,c.accuracy*0.25)) v=0; } }
-  if(typeof c.speed==='number' && isFinite(c.speed) && c.speed>=0){ const vs=c.speed*3.6; v=(v===null)?vs:(v+vs)/2; }
-  if(v!==null){ if(v>25) v=G.sp; G.sp=G.sp*0.5+v*0.5; if(G.sp<0.6) G.sp=0; }
+  if(typeof c.speed==='number' && isFinite(c.speed) && c.speed>=0){
+    v=c.speed*3.6;                               // velocità misurata dal GPS (affidabile)
+    if(v<1.2) v=0;                               // fermo o rumore del GPS
+  } else if(G.last){
+    const dt=(t-G.last.t)/1000, d=hav(G.last.ll,ll);
+    if(dt>0.3){ v=d/dt*3.6; if(d<Math.max(4,c.accuracy*0.6)) v=0; }
+  }
+  if(v!==null){ if(v>25) v=G.sp; G.sp=(v===0)?G.sp*0.4:(G.sp*0.5+v*0.5); if(G.sp<1.0) G.sp=0; }
   G.last={ll:ll,t:t};
   if(S.map){ if(!G.mk) G.mk=L.circleMarker([ll.lat,ll.lng],{radius:7,color:'#fff',weight:2,fillColor:'#1a73e8',fillOpacity:1}).addTo(S.map); else G.mk.setLatLng([ll.lat,ll.lng]); if(S.free) S.map.panTo([ll.lat,ll.lng],{animate:false}); }
 }

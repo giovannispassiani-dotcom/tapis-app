@@ -1828,7 +1828,11 @@ function onData(speed, incline){
   if(S.paused){ S.lastTs=ts; S.speed=0; render(); return; }
   if(S.lastTs!==null){
     const dt=(ts-S.lastTs)/1000;
-    if(dt>0 && dt<5 && speed>0.15){ S.dist+=speed*1000/3600*dt; S.moving+=dt; S.kcal+=kcalPerMin(speed,incline,parseFloat($('peso').value)||0)*dt/60; if(S.tour.on) tourTick(dt); }
+    const clk=!!(S.gps && S.tour.on);              // in strada il tempo scorre sempre (semafori compresi)
+    if(dt>0 && dt<5 && (speed>0.15||clk)){
+      if(speed>0.15){ S.dist+=speed*1000/3600*dt; S.kcal+=kcalPerMin(speed,incline,parseFloat($('peso').value)||0)*dt/60; }
+      S.moving+=dt; if(S.tour.on) tourTick(dt);
+    }
   }
   if(S.rec && S.route){
     while(S.dist>=S.rec.next){ S.rec.samples.push([S.rec.next,S.moving,S.kcal]); S.rec.next+=20; }
@@ -1839,6 +1843,7 @@ function onData(speed, incline){
   autoLogic(ts); render();
 }
 function render(){
+  try{ const fr=!!S.free; $('routeInfo').style.display=fr?'none':''; $('profile').parentNode.style.display=fr?'none':''; const hm=!!(S.free&&S.gps); $('mapWrap').style.display=hm?'none':''; $('tabMap').parentNode.style.display=hm?'none':''; }catch(e){}
   const on=!!(S.tour&&S.tour.on); $('ctlRow').style.display=on?'':'none'; $('btnPause').textContent=S.paused?'Riprendi la sessione':'Ferma la sessione (pausa)';
   $('vSpeed').textContent=S.speed.toFixed(1);
   $('vInc').textContent=S.incline.toFixed(1);
@@ -2025,6 +2030,9 @@ function onGps(pos){
       const peso=parseFloat($('peso').value)||0, inc=S.route?targetAt(S.route,pd(),40,1,20):0;
       for(let k=0;k<gs;k+=5){ const dt=Math.min(5,gs-k); S.dist+=gv*1000/3600*dt; S.moving+=dt; S.kcal+=kcalPerMin(gv,inc,peso)*dt/60; if(S.tour.on) tourTick(dt); }
       G.lost=(G.lost||0)+gd;
+      $('trInfo').textContent='Recuperati '+Math.round(gd)+' m (circa '+Math.round(gs/60*10)/10+' min) mentre il telefono era bloccato.';
+    } else if(gv<1.5){                                 // sono stato fermo mentre il telefono era bloccato: il tempo conta comunque
+      for(let k=0;k<gs;k+=5){ const dt=Math.min(5,gs-k); S.moving+=dt; if(S.tour.on) tourTick(dt); }
       $('trInfo').textContent='Recuperati '+Math.round(gd)+' m (circa '+Math.round(gs/60*10)/10+' min) mentre il telefono era bloccato.';
     }
   }

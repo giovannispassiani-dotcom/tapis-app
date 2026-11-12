@@ -796,7 +796,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   <details open>
     <summary>3. Inclinazione automatica</summary>
-    <div class="warn">Prima di attivarla: tapis collegato, nastro in movimento a velocità bassa e tasto STOP / chiave di sicurezza a portata di mano. Se cambi l'inclinazione con la console, l'app la riporta al valore del percorso.</div>
+    <div class="warn">Collegati sempre a nastro FERMO. Con l'app collegata i tasti della console non rispondono: avvia, regola la velocità e ferma il nastro da qui. La chiave di sicurezza resta lo stop di emergenza: tienila agganciata.</div>
+    <div class="row" id="rowSpeed">
+      <button id="btnSpdDown" class="gray" disabled>Velocità -0,5</button>
+      <button id="btnSpdUp" disabled>Avvia / Velocità +0,5</button>
+      <button id="btnSpdStop" class="red" disabled>FERMA nastro</button>
+    </div>
+    <div class="note" id="spdInfo">Velocità: collega il tapis per usarla (massimo 8 km/h).</div>
     <div class="row">
       <label>Inclinazione massima
         <select id="selMax"><option>4</option><option>6</option><option selected>8</option><option>10</option><option>12</option><option>15</option><option>20</option></select> %</label>
@@ -854,7 +860,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <details>
     <summary>Avanzate</summary>
     <label><input type="checkbox" id="chkFollow" checked> La mappa segue il marker</label><br>
-    <button id="btnStopTape" class="red" disabled>Stop nastro</button>
+    <button id="btnStopTape" class="red" disabled>Ferma nastro (velocità 0)</button>
     <button id="btnCopy" class="gray">Copia log</button>
     <div class="note">Log:</div>
     <div id="log"></div>
@@ -921,7 +927,7 @@ function targetAt(route, distM, aheadM, factor, maxPct){
 }
 // prossimo valore da comandare (oppure null): intervallo minimo, salto massimo, isteresi
 function nextIncline(target, current, lastCmdMs, nowMs, o){
-  o=o||{}; const minGap=o.minGap||4000, maxStep=o.maxStep||1.5, hyst=o.hyst||1.0;
+  o=o||{}; const minGap=o.minGap||5000, maxStep=o.maxStep||1.5, hyst=o.hyst||1.0;
   if(nowMs-lastCmdMs<minGap) return null;
   const diff=target-current;
   const toZero=(target===0 && current>0);
@@ -985,12 +991,14 @@ const S = {
   map:null, waypoints:[], wpMarkers:[], routeLine:null, route:null, posMarker:null,
   connected:false, sim:false, simTimer:null,
   speed:0, incline:0, dist:0, moving:0, lastTs:null,
-  auto:false, cmdIncline:null, lastCmd:0, target:null, finished:false,
+  auto:false, cmdIncline:null, cmdSpeed:null, cmdSpeedTs:0, lastCmd:0, target:null, finished:false,
   lastPan:0, wake:null,
   kcal:0, view:'map', lastHeading:0,
   tour:{on:false,result:null,markers:[]}, rec:{samples:[[0,0,0]],next:20}, lastAnn:0, saved:false, ref:null, refSame:false, ghostMarker:null, ghostD:null, finishedMsg:null
 };
 let device=null, chWrite=null, pollTimer=null, lastHex='';
+let txBusy=false;
+async function guarded(fn){ while(txBusy) await new Promise(r=>setTimeout(r,25)); txBusy=true; try{ return await fn(); } finally{ txBusy=false; } }
 const SERVICE='49535343-fe7d-4ae5-8fa9-9fafd205e455';
 const NOTIFY='49535343-1e4d-4bd9-ba61-23c647249616';
 const NOTIFY2='49535343-4c8a-39b3-2f49-511cff073b7e';
@@ -1622,6 +1630,7 @@ function trStart(){
     if(!S.free) T.bots.forEach(b=>{ const p=posAt(S.route,0); b.mk=L.circleMarker([p.lat,p.lng],{radius:4,color:'#fff',weight:1,fillColor:'#888',fillOpacity:0.9}).addTo(S.map); });
   }
   S.tour=T;
+  if(src==='t'){ S.auto=true; S.cmdIncline=null; S.lastCmd=0; S.finished=false; log('Inclinazione automatica ATTIVA (partita con l\'allenamento)'); }
   refreshRef();
   $('chkVoice').checked=true; store('voiceOn','1'); const vEv=(src==='g')?'300':'120'; $('selVoiceEvery').value=vEv; store('voiceEvery',vEv);
   if(mode==='cup') say('Mondiale delle nazioni! Siete in centoventotto e camminerete tutti per '+dur+' minuti. Tu sei l\'Italia. Forza azzurro, si parte! Ti aggiornerò ogni '+(src==='g'?'cinque':'due')+' minuti.');
@@ -1629,6 +1638,7 @@ function trStart(){
   render();
 }
 function tourStop(){
+  if(S.auto){ S.auto=false; if(S.connected||S.sim) sendIncline(0); }
   if(S.tour) tourClearMarkers();
   S.tour={on:false,result:null,bots:[],flagMk:[]}; S.paused=false;
   if(G.on) gpsStop();
@@ -1678,6 +1688,7 @@ function tourFinish(early){
   S.rec.samples.push([S.dist,S.moving,S.kcal]);
   const wasSaved=saveSession(!early);
   T.on=false; tourClearMarkers(); if(G.on) gpsStop();
+  if(S.auto){ S.auto=false; if(S.connected||S.sim) sendIncline(0); }
   const km=numIt(S.dist/1000,2), kc=parseFloat($('peso').value)>0?(' e '+Math.round(S.kcal)+' calorie'):'';
   let say1;
   if(cup){
@@ -1841,6 +1852,7 @@ function onData(speed, incline){
     else if(!S.saved || S.tour.on) voiceTick();
   }
   S.lastTs=ts; S.speed=speed; S.incline=incline;
+  if(S.cmdSpeed!==null && (Math.abs(speed-S.cmdSpeed)<0.15 || ts-S.cmdSpeedTs>8000)) S.cmdSpeed=null;
   autoLogic(ts); render();
 }
 function render(){
@@ -1870,6 +1882,7 @@ function render(){
   $('btnAuto').disabled=!(S.route && (S.connected||S.sim));
   $('btnZero').disabled=!(S.connected||S.sim);
   $('btnStopTape').disabled=!S.connected;
+  ['btnSpdUp','btnSpdDown','btnSpdStop'].forEach(i=>$(i).disabled=!(S.connected||S.sim));
   $('btnAuto').textContent=S.auto?'Spegni inclinazione automatica':'Attiva inclinazione automatica';
   $('autoInfo').textContent=S.auto
     ? 'Automatica ATTIVA'+(S.sim?' (simulazione: nessun comando inviato)':'')+' - obiettivo '+(S.target===null?'-':S.target.toFixed(1))+'%, ultimo comando '+(S.cmdIncline===null?'-':S.cmdIncline.toFixed(1))+'%'
@@ -1878,11 +1891,11 @@ function render(){
 async function sendIncline(pct){
   if(S.sim){ log('SIM: inclinazione '+pct+'%'); S.incline=pct; return; }
   if(!chWrite) return;
-  const a=buildSetCmd(S.speed,pct);
+  const sp=(S.cmdSpeed!==null)?S.cmdSpeed:S.speed;
+  const a=buildSetCmd(sp,pct);
   try{
-    await chWrite.writeValueWithoutResponse(a.slice(0,20));
-    await chWrite.writeValueWithResponse(a.slice(20));
-    log('TX inclinazione '+pct+'% (vel '+S.speed.toFixed(1)+'): '+hexOf(a));
+    await guarded(async()=>{ await chWrite.writeValueWithoutResponse(a.slice(0,20)); await chWrite.writeValueWithResponse(a.slice(20)); });
+    log('TX inclinazione '+pct+'% (vel '+sp.toFixed(1)+'): '+hexOf(a));
   }catch(e){ showErr('Comando non inviato: '+e.message); S.auto=false; }
 }
 function autoLogic(ts){
@@ -1909,6 +1922,23 @@ $('btnZero').onclick=async()=>{
   S.auto=false; S.cmdIncline=0; S.lastCmd=Date.now();
   await sendIncline(0); render();
 };
+const SPD_MAX=8;
+async function sendSpeed(v){
+  v=Math.round(Math.max(0,Math.min(SPD_MAX,v))*2)/2;
+  if(S.sim){ log('SIM: velocita '+v); return; }
+  if(!chWrite) return;
+  const inc=(S.cmdIncline!==null)?S.cmdIncline:(S.incline||0);
+  const a=buildSetCmd(v,inc);
+  try{
+    S.cmdSpeed=v; S.cmdSpeedTs=Date.now();
+    await guarded(async()=>{ await chWrite.writeValueWithoutResponse(a.slice(0,20)); await chWrite.writeValueWithResponse(a.slice(20)); });
+    log('TX velocita '+v.toFixed(1)+' (incl '+inc.toFixed(1)+'): '+hexOf(a));
+    $('spdInfo').textContent='Velocità richiesta: '+v.toFixed(1)+' km/h';
+  }catch(e){ S.cmdSpeed=null; showErr('Comando velocità non inviato: '+e.message); }
+}
+$('btnSpdUp').onclick=()=>{ const cur=(S.cmdSpeed!==null)?S.cmdSpeed:S.speed; sendSpeed(cur<0.5?1.0:cur+0.5); };
+$('btnSpdDown').onclick=()=>{ const cur=(S.cmdSpeed!==null)?S.cmdSpeed:S.speed; sendSpeed(cur<=1.0?0:cur-0.5); };
+$('btnSpdStop').onclick=()=>{ S.auto=false; sendSpeed(0); render(); };
 ['selMax','selFactor'].forEach(id=>$(id).onchange=render);
 
 // ====================== TAPIS (BLE) ======================
@@ -1971,13 +2001,13 @@ $('btnConnect').onclick=async()=>{
     await new Promise(r=>setTimeout(r,300));
     await chWrite.writeValueWithoutResponse(withChecksum([0xf0,0xc9]));
     await new Promise(r=>setTimeout(r,300));
-    pollTimer=setInterval(()=>chWrite.writeValueWithoutResponse(withChecksum([0xf0,0xac])).catch(e=>log('ERRORE query: '+e.message)),1000);
+    pollTimer=setInterval(()=>{ if(txBusy) return; guarded(()=>chWrite.writeValueWithoutResponse(withChecksum([0xf0,0xac]))).catch(e=>log('ERRORE query: '+e.message)); },1000);
     S.connected=true; S.lastTs=null;
     $('status').textContent='Collegato a '+device.name;
     log('Collegato e in lettura'); requestWake(); render();
   }catch(err){ showErr(err.message); $('status').textContent='Errore'; }
 };
-$('btnStopTape').onclick=()=>{ if(chWrite) chWrite.writeValueWithoutResponse(new Uint8Array([0xf0,0xc8,0x00,0xb8])).then(()=>log('TX stop nastro')).catch(e=>showErr(e.message)); };
+$('btnStopTape').onclick=()=>{ S.auto=false; sendSpeed(0); };
 
 // ====================== SIMULAZIONE ======================
 function stopSim(){ if(S.simTimer){ clearInterval(S.simTimer); S.simTimer=null; } S.sim=false; $('btnSim').textContent='Simulazione'; }
